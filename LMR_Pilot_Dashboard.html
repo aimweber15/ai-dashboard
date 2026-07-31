@@ -1,0 +1,773 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>St. Croix Electric Cooperative — LMR Rollout Pilot Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-2:      #ffffff;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6; /* pilot / projected (capacity model) */
+    --series-2:       #eb6834; /* contractor proposed */
+    --series-3:       #1baf7a; /* pilot calendar pace (reference) */
+    --good:           #0ca30c;
+    --warning:        #fab219;
+    --serious:        #ec835a;
+    --critical:       #d03b3b;
+    --good-bg:        #e7f6e7;
+    --warning-bg:     #fff6e2;
+    --critical-bg:    #fbe9e9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --surface-2:      #212120;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --grid:           #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --series-3:       #199e70;
+      --good:           #0ca30c;
+      --warning:        #fab219;
+      --serious:        #ec835a;
+      --critical:       #e66767;
+      --good-bg:        rgba(12,163,12,0.14);
+      --warning-bg:     rgba(250,178,25,0.14);
+      --critical-bg:    rgba(214,59,59,0.16);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 64px; }
+
+  header.page-header { margin-bottom: 24px; }
+  header.page-header h1 { font-size: 22px; margin: 0 0 4px; font-weight: 700; }
+  header.page-header p.sub { color: var(--text-secondary); margin: 0; font-size: 14px; max-width: 900px; }
+  header.page-header p.question {
+    margin: 10px 0 0; font-size: 15px; font-weight: 600; color: var(--text-primary);
+    padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    display: inline-block;
+  }
+
+  section { margin-bottom: 28px; }
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  h2.section-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  p.section-note { color: var(--text-muted); font-size: 12.5px; margin: 0 0 14px; }
+
+  /* Scenario controls */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
+    gap: 16px 20px;
+    align-items: end;
+  }
+  .field label {
+    display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em;
+  }
+  .field input[type="number"] {
+    width: 100%; padding: 8px 10px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface-1); color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .mix-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+  }
+  .mix-item { display: flex; flex-direction: column; gap: 4px; }
+  .mix-item label { font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; }
+  .mix-item .rate { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .mix-item input { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .mix-footer { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 12.5px; }
+  .mix-sum { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .mix-sum.match { color: var(--good); }
+  .mix-sum.mismatch { color: var(--warning-strong, #a66a00); }
+  button.ghost-btn {
+    font-size: 12.5px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-primary); cursor: pointer;
+  }
+  button.ghost-btn:hover { background: var(--surface-1); }
+
+  /* Stat cards */
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .stat-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .stat-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 6px; }
+  .stat-card .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-card .value small { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
+  .stat-card .detail { font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 15px;
+  }
+  .status-badge.good { background: var(--good-bg); color: var(--good); }
+  .status-badge.warning { background: var(--warning-bg); color: #a66a00; }
+  .status-badge.critical { background: var(--critical-bg); color: var(--critical); }
+  @media (prefers-color-scheme: dark) {
+    .status-badge.warning { color: var(--warning); }
+  }
+  .status-badge .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+
+  /* Reconciliation */
+  .recon-row { display: grid; grid-template-columns: 140px 1fr 60px; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--grid); }
+  .recon-row:last-child { border-bottom: none; }
+  .recon-label { font-weight: 600; font-size: 13.5px; }
+  .recon-label .sub { display: block; font-weight: 400; color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+  .recon-bars { display: flex; flex-direction: column; gap: 8px; }
+  .recon-bar-line { display: grid; grid-template-columns: 90px 1fr 110px; gap: 10px; align-items: center; }
+  .recon-bar-line .tag { font-size: 11.5px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+  .recon-bar-line .tag .swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+  .recon-bar-track { position: relative; height: 10px; background: var(--grid); border-radius: 5px; overflow: hidden; }
+  .recon-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; }
+  .recon-bar-line .num { font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: right; color: var(--text-primary); font-weight: 600; }
+  .recon-delta { text-align: right; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .recon-delta.good { color: var(--good); }
+  .recon-delta.bad { color: var(--critical); }
+  .legend-inline { display: flex; gap: 18px; margin-bottom: 10px; font-size: 12px; color: var(--text-secondary); }
+  .legend-inline .tag { display: flex; align-items: center; gap: 6px; }
+  .legend-inline .swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Accuracy panel */
+  .accuracy-grid { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 20px; align-items: center; }
+  .accuracy-stat .big { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .accuracy-stat .cap { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  .accuracy-stat .sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+  .pf-bar { display: flex; height: 22px; border-radius: 5px; overflow: hidden; border: 1px solid var(--border); }
+  .pf-bar .seg-good { background: var(--good); }
+  .pf-bar .seg-bad { background: var(--critical); }
+  .pf-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+  .pf-legend .tag { display: flex; align-items: center; gap: 6px; }
+  .pf-legend .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .pf-legend .dot.good { background: var(--good); }
+  .pf-legend .dot.bad { background: var(--critical); }
+  .footnote { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; }
+
+  /* Table */
+  .filters-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; }
+  .filters-row select, .filters-row input[type="search"] {
+    padding: 7px 10px; font-size: 13px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface-1); color: var(--text-primary);
+  }
+  .filters-row input[type="search"] { min-width: 200px; flex: 1; }
+  .filters-row .count-badge { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 980px; }
+  table.data-table thead th {
+    position: sticky; top: 0; background: var(--surface-1); z-index: 1;
+    text-align: left; padding: 9px 10px; font-weight: 700; cursor: pointer; user-select: none;
+    border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--text-secondary);
+  }
+  table.data-table thead th:hover { color: var(--text-primary); }
+  table.data-table thead th .arrow { display: inline-block; width: 10px; opacity: 0.6; }
+  table.data-table tbody td {
+    padding: 8px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  table.data-table tbody tr:hover { background: var(--surface-1); }
+  table.data-table tbody tr.excluded { opacity: 0.6; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .pill.ok { background: var(--good-bg); color: var(--good); }
+  .pill.fail { background: var(--critical-bg); color: var(--critical); }
+  .pill.na { background: var(--grid); color: var(--text-muted); }
+  .flag-cell { color: var(--text-muted); font-style: italic; white-space: normal; max-width: 220px; }
+
+  footer.methodology { margin-top: 32px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--grid); padding-top: 16px; }
+  footer.methodology h3 { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 6px; }
+  footer.methodology ul { margin: 0 0 10px 18px; padding: 0; }
+  footer.methodology li { margin-bottom: 4px; }
+
+  @media (max-width: 900px) {
+    .controls-grid { grid-template-columns: repeat(2, 1fr); }
+    .stat-row { grid-template-columns: 1fr; }
+    .accuracy-grid { grid-template-columns: 1fr; }
+    .recon-row { grid-template-columns: 1fr; }
+    .recon-delta { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page-header">
+    <h1>LMR Rollout — Pilot Data vs. Contractor Proposal</h1>
+    <p class="sub">St. Croix Electric Cooperative · Built from the 50-install pilot dataset (LMR_Pilot_Combined_Dataset_rev2). Every figure below is computed live from that data plus the contractor's stated rates — nothing is hard-coded or looked up externally.</p>
+    <p class="question">Is the contractor's proposal — $625,000 for 2,500 LMRs in 24 months with 2 installers — realistic against our pilot's actual performance?</p>
+  </header>
+
+  <!-- SCENARIO CONTROLS -->
+  <section>
+    <div class="card">
+      <h2 class="section-title">Scenario controls</h2>
+      <p class="section-note">Adjust these to run what-if scenarios. Projections below recalculate live, using the pilot's measured per-installer install rate and the contractor's per-unit cost table.</p>
+      <div class="controls-grid">
+        <div class="field">
+          <label for="in-installers">Installers</label>
+          <input type="number" id="in-installers" min="1" step="1" value="2">
+        </div>
+        <div class="field">
+          <label for="in-timeline">Proposed timeline (months)</label>
+          <input type="number" id="in-timeline" min="1" step="1" value="24">
+        </div>
+        <div class="field">
+          <label for="in-units">Total LMRs to install</label>
+          <input type="number" id="in-units" min="1" step="1" value="2500">
+        </div>
+        <div class="field">
+          <button class="ghost-btn" id="btn-reset-mix" style="width:100%;">Reset mix to pilot proportions</button>
+        </div>
+      </div>
+
+      <div class="mix-grid" id="mix-grid"></div>
+      <div class="mix-footer">
+        <span>Mix total: <span class="mix-sum" id="mix-sum">—</span></span>
+        <button class="ghost-btn" id="btn-reset-all">Reset all controls to contractor's proposal (default)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROJECTED OUTCOMES -->
+  <section>
+    <h2 class="section-title" style="margin-bottom:10px;">Projected outcomes</h2>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="label">Projected completion time</div>
+        <div class="value" id="out-months">—</div>
+        <div class="detail" id="out-months-detail">—</div>
+        <div class="detail" id="out-months-detail-ref" style="color:var(--series-3);margin-top:2px;">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Projected total cost</div>
+        <div class="value" id="out-cost">—</div>
+        <div class="detail" id="out-cost-detail">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Read on contractor's proposal</div>
+        <div class="value" style="font-size:20px;"><span class="status-badge" id="out-status"><span class="dot"></span><span id="out-status-label">—</span></span></div>
+        <div class="detail" id="out-status-detail">—</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RECONCILIATION -->
+  <section>
+    <div class="card">
+      <h2 class="section-title">Reconciliation — proposed vs. pilot-based projection</h2>
+      <p class="section-note">Contractor's stated proposal (fixed reference: $625,000 · 2,500 units · 24 months · 2 installers) compared against what the pilot's actual performance projects for the scenario set above.</p>
+      <div class="legend-inline">
+        <span class="tag"><span class="swatch" style="background:var(--series-2);"></span>Contractor proposed</span>
+        <span class="tag"><span class="swatch" style="background:var(--series-1);"></span>Pilot-based projection (40 hrs/week capacity model)</span>
+        <span class="tag"><span class="swatch" style="background:var(--series-3);"></span>Pilot calendar pace (reference — what the pilot actually delivered)</span>
+      </div>
+      <div id="recon-body"></div>
+    </div>
+  </section>
+
+  <!-- ACCURACY -->
+  <section>
+    <div class="card">
+      <h2 class="section-title">Install accuracy — pilot results</h2>
+      <p class="section-note">Reflects the installs currently visible in the table below (filters apply). 2 installs (PILOT-041, PILOT-047) are always excluded — their final-visit outcome was never recorded in the source data.</p>
+      <div class="accuracy-grid">
+        <div class="accuracy-stat">
+          <div class="cap">First-visit success rate</div>
+          <div class="big" id="acc-first">—</div>
+          <div class="sub" id="acc-first-sub">—</div>
+        </div>
+        <div class="accuracy-stat">
+          <div class="cap">Eventual success rate (after rework)</div>
+          <div class="big" id="acc-final">—</div>
+          <div class="sub" id="acc-final-sub">—</div>
+        </div>
+        <div>
+          <div class="pf-bar" id="pf-bar"></div>
+          <div class="pf-legend">
+            <span class="tag"><span class="dot good"></span>Completed <span id="pf-good-n"></span></span>
+            <span class="tag"><span class="dot bad"></span>Connection issue <span id="pf-bad-n"></span></span>
+          </div>
+        </div>
+      </div>
+      <div class="footnote" id="acc-footnote"></div>
+    </div>
+  </section>
+
+  <!-- TABLE -->
+  <section>
+    <div class="card">
+      <h2 class="section-title">Consolidated pilot install log</h2>
+      <p class="section-note">Click any column header to sort. Filters narrow both the table and the accuracy panel above.</p>
+      <div class="filters-row">
+        <select id="f-type"></select>
+        <select id="f-installer"></select>
+        <select id="f-first"></select>
+        <select id="f-final"></select>
+        <input type="search" id="f-search" placeholder="Search ID, site, area, notes…">
+        <button class="ghost-btn" id="btn-clear-filters">Clear filters</button>
+        <span class="count-badge" id="table-count"></span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="data-table">
+          <thead>
+            <tr>
+              <th data-key="id">Install ID<span class="arrow"></span></th>
+              <th data-key="date">Date<span class="arrow"></span></th>
+              <th data-key="installer">Installer<span class="arrow"></span></th>
+              <th data-key="area">Zone<span class="arrow"></span></th>
+              <th data-key="lmrType">LMR Type<span class="arrow"></span></th>
+              <th data-key="firstVisitResult">First-Visit Result<span class="arrow"></span></th>
+              <th data-key="finalResult">Final Result<span class="arrow"></span></th>
+              <th data-key="totalVisits">Visits<span class="arrow"></span></th>
+              <th data-key="laborHrs">Labor Hrs<span class="arrow"></span></th>
+              <th data-key="unitCost">Est. Unit Cost<span class="arrow"></span></th>
+              <th data-key="flag">Data Notes<span class="arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer class="methodology">
+    <h3>Methodology notes</h3>
+    <ul>
+      <li><strong>Per-installer rate:</strong> capacity model, not calendar throughput. Each installer is assumed to work <span id="foot-hrs-week"></span> hrs/week (<span id="foot-hrs-month"></span> hrs/month using a 30.44-day month). Divided by the pilot's average <em>total labor time per install</em> (<span id="foot-avg-labor"></span> hrs — install + drive + coordination time, averaged across <span id="foot-labor-n"></span> installs with recorded time; PILOT-041 and PILOT-047 excluded, no time data on file) = <span id="foot-rate"></span> installs/installer/month. This is a theoretical-capacity ceiling (full working hours spent installing, no scheduling gaps, no non-install duties).</li>
+      <li><strong>Pilot calendar pace (reference line):</strong> the rate the pilot actually delivered — <span id="foot-calendar-installs"></span> installs ÷ <span id="foot-calendar-installers"></span> pilot installers ÷ the pilot's real calendar span (<span id="foot-calendar-span"></span>, <span id="foot-calendar-months"></span> months) = <span id="foot-calendar-rate"></span> installs/installer/month. Shown alongside the capacity-model rate in the reconciliation panel and completion-time card above — the two are roughly <span id="foot-calendar-multiple"></span>x apart, reflecting scheduling gaps, non-install duties, and other real-world friction the capacity model doesn't account for.</li>
+      <li><strong>Cost:</strong> built entirely from the contractor's per-unit rate table (no actual-cost field exists in the pilot data) × the LMR mix set above.</li>
+      <li><strong>Accuracy:</strong> PILOT-041 and PILOT-047 are excluded from all success-rate math — their final-visit outcome was never recorded (source flag: "No technician notes row on file"). PILOT-024 is excluded from cost/mix totals only (missing LMR type) but counted normally toward accuracy and the per-installer rate.</li>
+      <li><strong>Realistic / at risk / not realistic:</strong> compares projected timeline to the proposed timeline and projected cost to the proposed budget. Realistic = projected ≤ proposed on both. At risk = up to 25% over proposed on the worse of the two. Not realistic = more than 25% over. Thresholds are shown so you can judge the underlying ratios directly, not just the label.</li>
+    </ul>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- embedded pilot data (50 unique installs) ---------- */
+  const RECORDS = [{"id":"PILOT-001","date":"2026-08-04","site":"Hill Heights","area":"West Zone","lmrType":"LMR-300 Compact Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.3667,"unitCost":250,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-002","date":"2026-08-06","site":"Birch Heights","area":"North Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.0667,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-003","date":"2026-08-07","site":"Hill Court","area":"East Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.2167,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-004","date":"2026-08-09","site":"Valley Estates","area":"Central Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.1833,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-005","date":"2026-08-11","site":"Cedar Court","area":"South Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Connection Issue","firstVisitSuccess":"No","finalResult":"Connection Issue","reworkVisit":false,"laborHrs":2.25,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-006","date":"2026-08-13","site":"Sunset Apartments","area":"West Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.3333,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-007","date":"2026-08-15","site":"Hill Estates","area":"West Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.2167,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-008","date":"2026-08-18","site":"Maple Place","area":"South Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.3667,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-009","date":"2026-08-19","site":"Lake Court","area":"West Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.4833,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-010","date":"2026-08-21","site":"Cedar Apartments","area":"Central Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.45,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-011","date":"2026-08-23","site":"River Apartments","area":"South Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.25,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-012","date":"2026-08-25","site":"Prairie Place","area":"West Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.75,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-013","date":"2026-08-28","site":"Cedar Commons","area":"East Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.2,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-014","date":"2026-08-30","site":"Forest Commons","area":"East Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.1167,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-015","date":"2026-08-31","site":"Valley Commons","area":"Central Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.2833,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-016","date":"2026-09-02","site":"Forest Village","area":"East Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.3333,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-017","date":"2026-09-05","site":"Sunset Commons","area":"West Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.2167,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-018","date":"2026-09-06","site":"Ridge Commons","area":"South Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.5167,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-019","date":"2026-09-08","site":"Forest Apartments","area":"West Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.6167,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-020","date":"2026-09-10","site":"Lake Estates","area":"East Zone","lmrType":"LMR-500 High-Capacity Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.0833,"unitCost":350,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-021","date":"2026-09-12","site":"Birch Place","area":"South Zone","lmrType":"LMR-500 High-Capacity Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.0167,"unitCost":350,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-022","date":"2026-09-14","site":"Ridge Court","area":"East Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.3,"unitCost":200,"flag":"LMR type name standardized from source value","excludeFromAccuracy":false},{"id":"PILOT-023","date":"2026-09-16","site":"Ridge Apartments","area":"Central Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.7667,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-024","date":"2026-09-18","site":"Pine Apartments","area":"Central Zone","lmrType":"","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.95,"unitCost":null,"flag":"Missing LMR type in Install Log","excludeFromAccuracy":false},{"id":"PILOT-025","date":"2026-09-20","site":"Ridge Village","area":"East Zone","lmrType":"LMR-300 Compact Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.0667,"unitCost":250,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-026","date":"2026-09-22","site":"Hill Place","area":"North Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.2333,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-027","date":"2026-09-24","site":"Oak Apartments","area":"West Zone","lmrType":"LMR-300 Compact Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Connection Issue","firstVisitSuccess":"No","finalResult":"Connection Issue","reworkVisit":false,"laborHrs":1.8833,"unitCost":250,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-028","date":"2026-09-26","site":"Valley Center","area":"Central Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.3167,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-029","date":"2026-09-28","site":"River Heights","area":"North Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":0.7667,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-030","date":"2026-10-01","site":"Forest Apartments","area":"South Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.85,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-031","date":"2026-10-03","site":"Lake Heights","area":"North Zone","lmrType":"LMR-500 High-Capacity Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.4,"unitCost":350,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-032","date":"2026-10-04","site":"River Commons","area":"East Zone","lmrType":"LMR-300 Compact Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.0667,"unitCost":250,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-033","date":"2026-10-06","site":"Lake Village","area":"South Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Connection Issue","firstVisitSuccess":"No","finalResult":"Connection Issue","reworkVisit":false,"laborHrs":1.3167,"unitCost":200,"flag":"LMR type name standardized from source value","excludeFromAccuracy":false},{"id":"PILOT-034","date":"2026-10-09","site":"Ridge Place","area":"South Zone","lmrType":"LMR-500 High-Capacity Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2,"unitCost":350,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-035","date":"2026-10-10","site":"Hill Village","area":"East Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.7167,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-036","date":"2026-10-12","site":"Brook Commons","area":"West Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.3667,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-037","date":"2026-10-14","site":"Lake Village","area":"East Zone","lmrType":"LMR-100 Standard Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Connection Issue","firstVisitSuccess":"No","finalResult":"Connection Issue","reworkVisit":false,"laborHrs":1.7667,"unitCost":200,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-038","date":"2026-10-17","site":"Pine Court","area":"Central Zone","lmrType":"LMR-300 Compact Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.3333,"unitCost":250,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-039","date":"2026-10-19","site":"Forest Estates","area":"South Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.8333,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-040","date":"2026-10-21","site":"Forest Heights","area":"West Zone","lmrType":"LMR-300 Compact Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.1167,"unitCost":250,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-041","date":"2026-10-22","site":"Pine Place","area":"East Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"","reworkVisit":false,"laborHrs":null,"unitCost":225,"flag":"No technician notes row on file","excludeFromAccuracy":true},{"id":"PILOT-042","date":"2026-10-25","site":"Maple Commons","area":"North Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.45,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-043","date":"2026-10-26","site":"Pine Court","area":"North Zone","lmrType":"LMR-500 High-Capacity Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.0833,"unitCost":350,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-044","date":"2026-10-28","site":"Oak Commons","area":"West Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer B","totalVisits":2,"firstVisitResult":"Connection Issue","firstVisitSuccess":"No","finalResult":"Completed","reworkVisit":true,"laborHrs":3.05,"unitCost":300,"flag":"Multiple visits - see Visit_Number","excludeFromAccuracy":false},{"id":"PILOT-045","date":"2026-10-30","site":"Forest Place","area":"South Zone","lmrType":"LMR-500 High-Capacity Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":1.3333,"unitCost":350,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-046","date":"2026-11-01","site":"Valley Place","area":"East Zone","lmrType":"LMR-200 Extended Range Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.15,"unitCost":225,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-047","date":"2026-11-03","site":"Birch Apartments","area":"North Zone","lmrType":"LMR-300 Compact Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"","reworkVisit":false,"laborHrs":null,"unitCost":250,"flag":"No technician notes row on file","excludeFromAccuracy":true},{"id":"PILOT-048","date":"2026-11-05","site":"Brook Commons","area":"South Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.1333,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-049","date":"2026-11-07","site":"Pine Estates","area":"North Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer A","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":0.9833,"unitCost":300,"flag":"","excludeFromAccuracy":false},{"id":"PILOT-050","date":"2026-11-09","site":"Maple Court","area":"West Zone","lmrType":"LMR-400 Outdoor-Rated Receiver","installer":"Installer B","totalVisits":1,"firstVisitResult":"Completed","firstVisitSuccess":"Yes","finalResult":"Completed","reworkVisit":false,"laborHrs":2.55,"unitCost":300,"flag":"","excludeFromAccuracy":false}];
+
+  const RATE_TABLE = {
+    "LMR-100 Standard Receiver": 200,
+    "LMR-200 Extended Range Receiver": 225,
+    "LMR-300 Compact Receiver": 250,
+    "LMR-400 Outdoor-Rated Receiver": 300,
+    "LMR-500 High-Capacity Receiver": 350
+  };
+  const TYPE_LABELS = Object.keys(RATE_TABLE);
+  const TYPE_SHORT = {
+    "LMR-100 Standard Receiver": "LMR-100",
+    "LMR-200 Extended Range Receiver": "LMR-200",
+    "LMR-300 Compact Receiver": "LMR-300",
+    "LMR-400 Outdoor-Rated Receiver": "LMR-400",
+    "LMR-500 High-Capacity Receiver": "LMR-500"
+  };
+
+  const PROPOSAL = { budget: 625000, units: 2500, timelineMonths: 24, installers: 2 };
+
+  /* ---------- pilot baseline (fixed, computed once from the data) ---------- */
+  const dates = RECORDS.map(r => new Date(r.date + "T00:00:00"));
+  const pilotStart = new Date(Math.min.apply(null, dates));
+  const pilotEnd = new Date(Math.max.apply(null, dates));
+  const pilotDurationDays = (pilotEnd - pilotStart) / 86400000;
+  const pilotDurationMonths = pilotDurationDays / 30.44;
+  const pilotInstallers = new Set(RECORDS.map(r => r.installer)).size;
+  const pilotTotalInstalls = RECORDS.length;
+
+  /* Per-installer rate: labor-hours capacity model.
+     Each installer works HOURS_PER_WEEK hrs/week; divided by the pilot's average
+     total labor time per install (install + drive + coordination) to get a
+     theoretical-capacity installs/installer/month figure. */
+  const HOURS_PER_WEEK = 40;
+  const WEEKS_PER_MONTH = 30.44 / 7;
+  const hoursPerMonthPerInstaller = HOURS_PER_WEEK * WEEKS_PER_MONTH;
+  const laborHrsValues = RECORDS.filter(r => r.laborHrs !== null).map(r => r.laborHrs);
+  const avgLaborHrsPerInstall = laborHrsValues.reduce((a, b) => a + b, 0) / laborHrsValues.length;
+  const pilotRatePerInstallerPerMonth = hoursPerMonthPerInstaller / avgLaborHrsPerInstall;
+
+  /* Reference only: the pilot's realized calendar-throughput rate (installs actually
+     completed per installer over the pilot's real calendar span, no capacity assumption).
+     Shown alongside the capacity-model rate above so the ~12x gap between "theoretical
+     ceiling" and "what actually happened" stays visible, not just the ceiling figure. */
+  const pilotCalendarRatePerInstallerPerMonth = pilotTotalInstalls / pilotInstallers / pilotDurationMonths;
+
+  const pilotPacePerInstallerPerMonthProposed = PROPOSAL.units / PROPOSAL.installers / PROPOSAL.timelineMonths;
+
+  const typedRecords = RECORDS.filter(r => r.lmrType);
+  const typeCounts = {};
+  TYPE_LABELS.forEach(t => typeCounts[t] = 0);
+  typedRecords.forEach(r => { typeCounts[r.lmrType]++; });
+  const typedTotal = typedRecords.length;
+  const defaultMixProportions = {};
+  TYPE_LABELS.forEach(t => defaultMixProportions[t] = typeCounts[t] / typedTotal);
+
+  function distributeMix(totalUnits) {
+    const floats = TYPE_LABELS.map(t => defaultMixProportions[t] * totalUnits);
+    const floors = floats.map(Math.floor);
+    let remainder = totalUnits - floors.reduce((a, b) => a + b, 0);
+    const fracIdx = floats.map((f, i) => ({ i, frac: f - floors[i] })).sort((a, b) => b.frac - a.frac);
+    const result = floors.slice();
+    for (let k = 0; k < remainder; k++) result[fracIdx[k % fracIdx.length].i]++;
+    const out = {};
+    TYPE_LABELS.forEach((t, i) => out[t] = result[i]);
+    return out;
+  }
+
+  /* ---------- state ---------- */
+  const state = {
+    installers: 2,
+    timelineMonths: 24,
+    totalUnits: 2500,
+    mix: distributeMix(2500),
+    mixManuallyEdited: false,
+    filters: { type: "", installer: "", first: "", final: "", search: "" },
+    sortKey: "id",
+    sortDir: "asc"
+  };
+
+  /* ---------- formatting helpers ---------- */
+  const fmtCurrency = n => "$" + Math.round(n).toLocaleString("en-US");
+  const fmtNum = (n, d) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtPct = n => (n * 100).toLocaleString("en-US", { maximumFractionDigits: 1 }) + "%";
+
+  /* ---------- build mix input UI ---------- */
+  const mixGrid = document.getElementById("mix-grid");
+  TYPE_LABELS.forEach(t => {
+    const item = document.createElement("div");
+    item.className = "mix-item";
+    item.innerHTML =
+      '<label>' + TYPE_SHORT[t] + ' <span class="rate">$' + RATE_TABLE[t] + '/unit</span></label>' +
+      '<input type="number" min="0" step="1" data-type="' + t + '" value="' + state.mix[t] + '">';
+    mixGrid.appendChild(item);
+  });
+  const mixInputs = Array.from(mixGrid.querySelectorAll("input"));
+  mixInputs.forEach(inp => inp.addEventListener("input", () => {
+    state.mixManuallyEdited = true;
+    state.mix[inp.dataset.type] = Math.max(0, parseInt(inp.value || "0", 10));
+    render();
+  }));
+
+  document.getElementById("btn-reset-mix").addEventListener("click", () => {
+    state.mix = distributeMix(state.totalUnits);
+    state.mixManuallyEdited = false;
+    mixInputs.forEach(inp => inp.value = state.mix[inp.dataset.type]);
+    render();
+  });
+
+  document.getElementById("btn-reset-all").addEventListener("click", () => {
+    state.installers = PROPOSAL.installers;
+    state.timelineMonths = PROPOSAL.timelineMonths;
+    state.totalUnits = PROPOSAL.units;
+    state.mix = distributeMix(PROPOSAL.units);
+    state.mixManuallyEdited = false;
+    document.getElementById("in-installers").value = state.installers;
+    document.getElementById("in-timeline").value = state.timelineMonths;
+    document.getElementById("in-units").value = state.totalUnits;
+    mixInputs.forEach(inp => inp.value = state.mix[inp.dataset.type]);
+    render();
+  });
+
+  document.getElementById("in-installers").addEventListener("input", function () {
+    state.installers = Math.max(1, parseInt(this.value || "1", 10));
+    render();
+  });
+  document.getElementById("in-timeline").addEventListener("input", function () {
+    state.timelineMonths = Math.max(0.01, parseFloat(this.value || "1"));
+    render();
+  });
+  document.getElementById("in-units").addEventListener("input", function () {
+    state.totalUnits = Math.max(1, parseInt(this.value || "1", 10));
+    if (!state.mixManuallyEdited) {
+      state.mix = distributeMix(state.totalUnits);
+      mixInputs.forEach(inp => inp.value = state.mix[inp.dataset.type]);
+    }
+    render();
+  });
+
+  /* ---------- filters UI ---------- */
+  function fillSelect(el, values, label) {
+    el.innerHTML = '<option value="">' + label + ' — all</option>' +
+      values.map(v => '<option value="' + v + '">' + v + '</option>').join("");
+  }
+  fillSelect(document.getElementById("f-type"), TYPE_LABELS.concat(["(Missing)"]), "LMR type");
+  fillSelect(document.getElementById("f-installer"), Array.from(new Set(RECORDS.map(r => r.installer))).sort(), "Installer");
+  fillSelect(document.getElementById("f-first"), ["Completed", "Connection Issue"], "First-visit result");
+  fillSelect(document.getElementById("f-final"), ["Completed", "Connection Issue", "Not Recorded"], "Final result");
+
+  document.getElementById("f-type").addEventListener("change", function () { state.filters.type = this.value; render(); });
+  document.getElementById("f-installer").addEventListener("change", function () { state.filters.installer = this.value; render(); });
+  document.getElementById("f-first").addEventListener("change", function () { state.filters.first = this.value; render(); });
+  document.getElementById("f-final").addEventListener("change", function () { state.filters.final = this.value; render(); });
+  document.getElementById("f-search").addEventListener("input", function () { state.filters.search = this.value.trim().toLowerCase(); render(); });
+  document.getElementById("btn-clear-filters").addEventListener("click", () => {
+    state.filters = { type: "", installer: "", first: "", final: "", search: "" };
+    document.getElementById("f-type").value = "";
+    document.getElementById("f-installer").value = "";
+    document.getElementById("f-first").value = "";
+    document.getElementById("f-final").value = "";
+    document.getElementById("f-search").value = "";
+    render();
+  });
+
+  /* ---------- table header sort ---------- */
+  document.querySelectorAll("#data-table thead th").forEach(th => {
+    th.addEventListener("click", () => {
+      const key = th.dataset.key;
+      if (state.sortKey === key) {
+        state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        state.sortKey = key;
+        state.sortDir = "asc";
+      }
+      render();
+    });
+  });
+
+  function getFiltered() {
+    return RECORDS.filter(r => {
+      if (state.filters.type) {
+        if (state.filters.type === "(Missing)" ? r.lmrType !== "" : r.lmrType !== state.filters.type) return false;
+      }
+      if (state.filters.installer && r.installer !== state.filters.installer) return false;
+      if (state.filters.first && r.firstVisitResult !== state.filters.first) return false;
+      if (state.filters.final) {
+        const fr = r.finalResult === "" ? "Not Recorded" : r.finalResult;
+        if (fr !== state.filters.final) return false;
+      }
+      if (state.filters.search) {
+        const hay = [r.id, r.site, r.area, r.flag].join(" ").toLowerCase();
+        if (!hay.includes(state.filters.search)) return false;
+      }
+      return true;
+    });
+  }
+
+  function sortRows(rows) {
+    const key = state.sortKey, dir = state.sortDir === "asc" ? 1 : -1;
+    return rows.slice().sort((a, b) => {
+      let av = a[key], bv = b[key];
+      if (av === null || av === undefined) av = "";
+      if (bv === null || bv === undefined) bv = "";
+      if (typeof av === "string") av = av.toLowerCase();
+      if (typeof bv === "string") bv = bv.toLowerCase();
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }
+
+  /* ---------- render: table ---------- */
+  function renderTable() {
+    const filtered = sortRows(getFiltered());
+    document.querySelectorAll("#data-table thead th").forEach(th => {
+      const arrow = th.querySelector(".arrow");
+      arrow.textContent = th.dataset.key === state.sortKey ? (state.sortDir === "asc" ? "▲" : "▼") : "";
+    });
+    const body = document.getElementById("table-body");
+    body.innerHTML = filtered.map(r => {
+      const firstPill = r.firstVisitSuccess === "Yes"
+        ? '<span class="pill ok">Completed</span>'
+        : '<span class="pill fail">Connection Issue</span>';
+      const finalLabel = r.finalResult === "" ? "Not Recorded" : r.finalResult;
+      const finalPill = r.finalResult === "Completed" ? '<span class="pill ok">Completed</span>'
+        : r.finalResult === "Connection Issue" ? '<span class="pill fail">Connection Issue</span>'
+        : '<span class="pill na">Not Recorded</span>';
+      const cost = r.unitCost === null ? "—" : "$" + r.unitCost;
+      const labor = r.laborHrs === null ? "—" : fmtNum(r.laborHrs, 2);
+      const type = r.lmrType === "" ? "(Missing)" : TYPE_SHORT[r.lmrType] || r.lmrType;
+      const excludedTag = r.excludeFromAccuracy ? ' <span class="pill na">excluded from accuracy</span>' : "";
+      return '<tr class="' + (r.excludeFromAccuracy ? "excluded" : "") + '">' +
+        '<td>' + r.id + '</td>' +
+        '<td>' + r.date + '</td>' +
+        '<td>' + r.installer + '</td>' +
+        '<td>' + r.area + '</td>' +
+        '<td>' + type + '</td>' +
+        '<td>' + firstPill + '</td>' +
+        '<td>' + finalPill + '</td>' +
+        '<td>' + r.totalVisits + (r.reworkVisit ? " (rework)" : "") + '</td>' +
+        '<td>' + labor + '</td>' +
+        '<td>' + cost + '</td>' +
+        '<td class="flag-cell">' + (r.flag || "") + excludedTag + '</td>' +
+        '</tr>';
+    }).join("");
+    document.getElementById("table-count").textContent = filtered.length + " of " + RECORDS.length + " installs shown";
+    return filtered;
+  }
+
+  /* ---------- render: accuracy panel (reacts to filters) ---------- */
+  function renderAccuracy(filtered) {
+    const eligible = filtered.filter(r => !r.excludeFromAccuracy);
+    const nExcludedInView = filtered.length - eligible.length;
+    const firstSuccesses = eligible.filter(r => r.firstVisitSuccess === "Yes").length;
+    const finalSuccesses = eligible.filter(r => r.finalResult === "Completed").length;
+    const n = eligible.length;
+
+    document.getElementById("acc-first").textContent = n ? fmtPct(firstSuccesses / n) : "—";
+    document.getElementById("acc-first-sub").textContent = n ? firstSuccesses + " of " + n + " installs right on the first visit" : "no eligible installs in current filter";
+    document.getElementById("acc-final").textContent = n ? fmtPct(finalSuccesses / n) : "—";
+    document.getElementById("acc-final-sub").textContent = n ? finalSuccesses + " of " + n + " ultimately completed (incl. rework)" : "no eligible installs in current filter";
+
+    const bar = document.getElementById("pf-bar");
+    bar.innerHTML = "";
+    if (n) {
+      const goodPct = (finalSuccesses / n) * 100;
+      const badPct = 100 - goodPct;
+      bar.innerHTML =
+        '<div class="seg-good" style="width:' + goodPct + '%;"></div>' +
+        '<div class="seg-bad" style="width:' + badPct + '%;"></div>';
+    }
+    document.getElementById("pf-good-n").textContent = "(" + finalSuccesses + ")";
+    document.getElementById("pf-bad-n").textContent = "(" + (n - finalSuccesses) + ")";
+
+    document.getElementById("acc-footnote").textContent =
+      "n = " + n + " evaluable installs in current view" +
+      (nExcludedInView ? " · " + nExcludedInView + " install(s) in view excluded (incomplete final-status data)" : "") +
+      " · across the full pilot, 48 of 50 installs are evaluable.";
+  }
+
+  /* ---------- render: projections + reconciliation ---------- */
+  function renderProjections() {
+    const projectedMonths = state.totalUnits / (state.installers * pilotRatePerInstallerPerMonth);
+    const projectedCost = TYPE_LABELS.reduce((sum, t) => sum + state.mix[t] * RATE_TABLE[t], 0);
+    const mixSum = TYPE_LABELS.reduce((s, t) => s + state.mix[t], 0);
+
+    const mixSumEl = document.getElementById("mix-sum");
+    mixSumEl.textContent = mixSum.toLocaleString("en-US") + " / " + state.totalUnits.toLocaleString("en-US");
+    mixSumEl.className = "mix-sum " + (mixSum === state.totalUnits ? "match" : "mismatch");
+
+    document.getElementById("out-months").innerHTML = fmtNum(projectedMonths, 1) + " <small>months</small>";
+    document.getElementById("out-months-detail").textContent =
+      state.installers + " installer(s) × " + fmtNum(pilotRatePerInstallerPerMonth, 2) + " installs/installer/month (40 hrs/week capacity ÷ pilot avg labor time)";
+    const calendarProjectedMonthsStat = state.totalUnits / (state.installers * pilotCalendarRatePerInstallerPerMonth);
+    document.getElementById("out-months-detail-ref").textContent =
+      "Reference — at the pilot's realized calendar pace (" + fmtNum(pilotCalendarRatePerInstallerPerMonth, 2) + "/installer/month): " + fmtNum(calendarProjectedMonthsStat, 1) + " months";
+
+    document.getElementById("out-cost").textContent = fmtCurrency(projectedCost);
+    document.getElementById("out-cost-detail").textContent =
+      state.totalUnits.toLocaleString("en-US") + " units at contractor per-unit rates, current mix";
+
+    const timeRatio = projectedMonths / state.timelineMonths;
+    const costRatio = projectedCost / PROPOSAL.budget;
+    const worst = Math.max(timeRatio, costRatio);
+    let level, label;
+    if (worst <= 1.0) { level = "good"; label = "Realistic"; }
+    else if (worst <= 1.25) { level = "warning"; label = "At Risk"; }
+    else { level = "critical"; label = "Not Realistic"; }
+
+    const badge = document.getElementById("out-status");
+    badge.className = "status-badge " + level;
+    document.getElementById("out-status-label").textContent = label;
+    document.getElementById("out-status-detail").textContent =
+      "Projected timeline is " + fmtPct(timeRatio - 1) + " vs. proposed 24 mo; projected cost is " + fmtPct(costRatio - 1) + " vs. proposed $625,000.";
+
+    renderReconciliation(projectedMonths, projectedCost);
+  }
+
+  function reconRow(labelHtml, subLabel, proposedVal, projectedVal, proposedFmt, projectedFmt, higherIsWorse, extraRefs) {
+    extraRefs = extraRefs || [];
+    const allVals = [proposedVal, projectedVal].concat(extraRefs.map(r => r.value));
+    const maxVal = Math.max.apply(null, allVals) || 1;
+    const propPct = (proposedVal / maxVal) * 100;
+    const projPct = (projectedVal / maxVal) * 100;
+    const delta = projectedVal - proposedVal;
+    const deltaPct = proposedVal !== 0 ? (delta / proposedVal) : 0;
+    const isBad = higherIsWorse ? delta > 0 : delta < 0;
+    const deltaSign = delta > 0 ? "+" : "";
+    const extraLines = extraRefs.map(r => {
+      const pct = (r.value / maxVal) * 100;
+      return '<div class="recon-bar-line"><span class="tag"><span class="swatch" style="background:' + r.colorVar + ';"></span>' + r.label + '</span>' +
+        '<div class="recon-bar-track"><div class="recon-bar-fill" style="width:' + pct + '%;background:' + r.colorVar + ';"></div></div>' +
+        '<span class="num">' + r.fmt + '</span></div>';
+    }).join("");
+    return (
+      '<div class="recon-row">' +
+        '<div class="recon-label">' + labelHtml + '<span class="sub">' + subLabel + '</span></div>' +
+        '<div class="recon-bars">' +
+          '<div class="recon-bar-line"><span class="tag"><span class="swatch" style="background:var(--series-2);"></span>Proposed</span>' +
+            '<div class="recon-bar-track"><div class="recon-bar-fill" style="width:' + propPct + '%;background:var(--series-2);"></div></div>' +
+            '<span class="num">' + proposedFmt + '</span></div>' +
+          '<div class="recon-bar-line"><span class="tag"><span class="swatch" style="background:var(--series-1);"></span>Projected</span>' +
+            '<div class="recon-bar-track"><div class="recon-bar-fill" style="width:' + projPct + '%;background:var(--series-1);"></div></div>' +
+            '<span class="num">' + projectedFmt + '</span></div>' +
+          extraLines +
+        '</div>' +
+        '<div class="recon-delta ' + (isBad ? "bad" : "good") + '">' + deltaSign + fmtPct(deltaPct) + '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderReconciliation(projectedMonths, projectedCost) {
+    const body = document.getElementById("recon-body");
+    const calendarProjectedMonths = state.totalUnits / (state.installers * pilotCalendarRatePerInstallerPerMonth);
+    body.innerHTML =
+      reconRow("Timeline", "months to complete", state.timelineMonths, projectedMonths,
+        fmtNum(state.timelineMonths, 1) + " mo", fmtNum(projectedMonths, 1) + " mo", true,
+        [{ label: "Pilot calendar pace (ref.)", value: calendarProjectedMonths, fmt: fmtNum(calendarProjectedMonths, 1) + " mo", colorVar: "var(--series-3)" }]) +
+      reconRow("Budget", "total program cost", PROPOSAL.budget, projectedCost,
+        fmtCurrency(PROPOSAL.budget), fmtCurrency(projectedCost), true) +
+      reconRow("Pace", "installs / installer / month", pilotPacePerInstallerPerMonthProposed, pilotRatePerInstallerPerMonth,
+        fmtNum(pilotPacePerInstallerPerMonthProposed, 1), fmtNum(pilotRatePerInstallerPerMonth, 2), false,
+        [{ label: "Pilot calendar pace (ref.)", value: pilotCalendarRatePerInstallerPerMonth, fmt: fmtNum(pilotCalendarRatePerInstallerPerMonth, 2), colorVar: "var(--series-3)" }]);
+  }
+
+  /* ---------- footer methodology figures (static, computed once) ---------- */
+  function renderFooterFigures() {
+    document.getElementById("foot-hrs-week").textContent = HOURS_PER_WEEK;
+    document.getElementById("foot-hrs-month").textContent = fmtNum(hoursPerMonthPerInstaller, 1);
+    document.getElementById("foot-avg-labor").textContent = fmtNum(avgLaborHrsPerInstall, 2);
+    document.getElementById("foot-labor-n").textContent = laborHrsValues.length;
+    document.getElementById("foot-rate").textContent = fmtNum(pilotRatePerInstallerPerMonth, 1);
+
+    const dateStrs = RECORDS.map(r => r.date).sort();
+    document.getElementById("foot-calendar-installs").textContent = pilotTotalInstalls;
+    document.getElementById("foot-calendar-installers").textContent = pilotInstallers;
+    document.getElementById("foot-calendar-span").textContent = dateStrs[0] + " to " + dateStrs[dateStrs.length - 1];
+    document.getElementById("foot-calendar-months").textContent = fmtNum(pilotDurationMonths, 2);
+    document.getElementById("foot-calendar-rate").textContent = fmtNum(pilotCalendarRatePerInstallerPerMonth, 2);
+    document.getElementById("foot-calendar-multiple").textContent = fmtNum(pilotRatePerInstallerPerMonth / pilotCalendarRatePerInstallerPerMonth, 1);
+  }
+
+  /* ---------- master render ---------- */
+  function render() {
+    const filtered = renderTable();
+    renderAccuracy(filtered);
+    renderProjections();
+  }
+
+  renderFooterFigures();
+  render();
+})();
+</script>
+</body>
+</html>
