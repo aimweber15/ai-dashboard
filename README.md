@@ -4,6 +4,8 @@ A self-contained HTML dashboard built for St. Croix Electric Cooperative managem
 
 > **Is the contractor's proposal — $625,000 for 2,500 LMRs in 24 months with 2 installers — realistic, measured against our pilot data?**
 
+**Live dashboard:** https://aimweber15.github.io/ai-dashboard/LMR_Pilot_Dashboard.html
+
 ## Files
 
 | File | Purpose |
@@ -13,7 +15,9 @@ A self-contained HTML dashboard built for St. Croix Electric Cooperative managem
 
 ## How to open it
 
-Double-click `LMR_Pilot_Dashboard.html`, or run:
+Easiest: open the live link above in any browser — no download needed.
+
+Or run it locally: double-click `LMR_Pilot_Dashboard.html`, or run:
 
 ```bash
 start "" "LMR_Pilot_Dashboard.html"
